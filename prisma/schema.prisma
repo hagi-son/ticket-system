@@ -1,0 +1,186 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Organization (ein Account = eine Firma)
+// ─────────────────────────────────────────────
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // für URL: ticketdesk.app/org/meine-firma
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  tickets   Ticket[]
+  mailboxes Mailbox[]
+  contacts  Contact[]
+}
+
+// ─────────────────────────────────────────────
+// User (Agenten & Admins)
+// ─────────────────────────────────────────────
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           UserRole @default(AGENT)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedTickets Ticket[]  @relation("AssignedAgent")
+  messages        Message[]
+  sessions        Session[]
+}
+
+// ─────────────────────────────────────────────
+// Session (Auth)
+// ─────────────────────────────────────────────
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// Contact (Kunden, die Tickets einreichen)
+// ─────────────────────────────────────────────
+model Contact {
+  id             String   @id @default(cuid())
+  name           String?
+  email          String
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets        Ticket[]
+
+  @@unique([email, organizationId])
+}
+
+// ─────────────────────────────────────────────
+// Mailbox (support@, billing@, ...)
+// ─────────────────────────────────────────────
+model Mailbox {
+  id             String   @id @default(cuid())
+  name           String   // "Support", "Billing"
+  email          String   @unique
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets        Ticket[]
+}
+
+// ─────────────────────────────────────────────
+// Ticket
+// ─────────────────────────────────────────────
+model Ticket {
+  id        String         @id @default(cuid())
+  number    Int            // #1234 — menschenlesbar
+  title     String
+  status    TicketStatus   @default(OPEN)
+  priority  TicketPriority @default(NORMAL)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  closedAt  DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  mailboxId String?
+  mailbox   Mailbox? @relation(fields: [mailboxId], references: [id])
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedAgent", fields: [assignedToId], references: [id])
+
+  messages Message[]
+  tags     TicketTag[]
+
+  @@unique([number, organizationId])
+}
+
+// ─────────────────────────────────────────────
+// Message (Antworten + interne Notizen)
+// ─────────────────────────────────────────────
+model Message {
+  id         String   @id @default(cuid())
+  body       String
+  isInternal Boolean  @default(false) // true = interne Notiz, nur für Agenten
+  isFromContact Boolean @default(false) // true = vom Kunden
+  createdAt  DateTime @default(now())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId String?
+  author   User?   @relation(fields: [authorId], references: [id])
+}
+
+// ─────────────────────────────────────────────
+// Tags
+// ─────────────────────────────────────────────
+model Tag {
+  id    String      @id @default(cuid())
+  name  String
+  color String      @default("#6366f1")
+  tickets TicketTag[]
+}
+
+model TicketTag {
+  ticketId String
+  tagId    String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum UserRole {
+  ADMIN
+  AGENT
+  CUSTOMER
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+}

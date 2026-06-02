@@ -1,0 +1,37 @@
+# Lokale Entwicklung — nicht für Coolify
+# In Coolify: App und DB als separate Services anlegen
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ticketdesk
+      POSTGRES_PASSWORD: ticketdesk_local
+      POSTGRES_DB: ticketdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://ticketdesk:ticketdesk_local@db:5432/ticketdesk
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: local-dev-secret-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
