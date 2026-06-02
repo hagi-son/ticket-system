@@ -9,7 +9,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 RUN npm install --omit=dev --legacy-peer-deps
-RUN npx prisma generate
+RUN ./node_modules/.bin/prisma generate
 
 # ─────────────────────────────────────────────
 # Stage 2: Builder
@@ -42,8 +42,12 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/prisma ./prisma
+
+# Prisma für Migrationen beim Start
 COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/prisma ./prisma
 
 USER nextjs
 
@@ -51,5 +55,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Migrationen ausführen, dann App starten
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "node_modules/prisma/build/index.js migrate deploy && node server.js"]
