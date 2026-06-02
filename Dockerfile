@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────
-# Stage 1: Dependencies
+# Stage 1: Dependencies (alle, inkl. devDeps für Build)
 # ─────────────────────────────────────────────
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm install --omit=dev --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 RUN ./node_modules/.bin/prisma generate
 
 # ─────────────────────────────────────────────
@@ -18,10 +18,7 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
-
-COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -30,7 +27,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # ─────────────────────────────────────────────
-# Stage 3: Runner (minimal image)
+# Stage 3: Runner (minimales Image)
 # ─────────────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache openssl
