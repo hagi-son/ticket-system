@@ -18,7 +18,10 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
